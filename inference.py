@@ -186,7 +186,7 @@ def inference_api(
     """
 
     parser = ArgumentParser()
-    
+
     parser.add_argument(
         "--driven_audio",
         help="path to driven audio",
@@ -303,16 +303,16 @@ def inference_api(
     parser.add_argument("--camera_d", type=float, default=10.0)
     parser.add_argument("--z_near", type=float, default=5.0)
     parser.add_argument("--z_far", type=float, default=15.0)
-    
+
     args = parser.parse_args()
-    
+
     # replace parser values by fuction attributes
     args.driven_audio = driven_audio
-    args.source_image= source_image
+    args.source_image = source_image
     args.batch_size = batch_size
     args.size = size
     args.enhancer = enhancer
-    args.pose_style= pose_style
+    args.pose_style = pose_style
     args.expression_scale = expression_scale
     args.result_dir = result_dir
     args.net_recon = net_recon
@@ -332,8 +332,8 @@ def inference_api(
 
 
 inference_api(
-    driven_audio="./demo/vu_voice.wav",
-    source_image="./demo/vule_toy.png",
+    driven_audio="./examples/driven_audio/bus_chinese.wav",
+    source_image="./examples/source_image/full_body_1.png",
     batch_size=8,
     size=256,
     preprocess="full",
