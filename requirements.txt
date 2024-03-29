@@ -139,3 +139,4 @@ Werkzeug==3.0.1
 yacs==0.1.8
 yapf==0.40.2
 zipp==3.18.1
+gdown==5.1.0

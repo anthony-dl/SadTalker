@@ -35,7 +35,18 @@
 
 </div>
 
+## Vu's update
+Please run the code on python3.8.19 (I created with conda). Then run:
+```bash
+pip install -r requirements.txt
+```
 
+Download pretrained models from my drive (this is meant to avoid new updates from the author's website):
+```
+bash scripts/download_models.sh
+```
+
+Then, you can test with your own images by parsing arguments or using my inference_api function, which is written on top of args parser.
 
 ## Highlights
 
