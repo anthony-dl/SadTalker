@@ -17,8 +17,19 @@ class PartialFC(Module):
     """
 
     @torch.no_grad()
-    def __init__(self, rank, local_rank, world_size, batch_size, resume,
-                 margin_softmax, num_classes, sample_rate=1.0, embedding_size=512, prefix="./"):
+    def __init__(
+        self,
+        rank,
+        local_rank,
+        world_size,
+        batch_size,
+        resume,
+        margin_softmax,
+        num_classes,
+        sample_rate=1.0,
+        embedding_size=512,
+        prefix="./",
+    ):
         """
         rank: int
             Unique process(GPU) ID from 0 to world_size - 1.
@@ -55,28 +66,43 @@ class PartialFC(Module):
         self.sample_rate: float = sample_rate
         self.embedding_size: int = embedding_size
         self.prefix: str = prefix
-        self.num_local: int = num_classes // world_size + int(rank < num_classes % world_size)
-        self.class_start: int = num_classes // world_size * rank + min(rank, num_classes % world_size)
+        self.num_local: int = num_classes // world_size + int(
+            rank < num_classes % world_size
+        )
+        self.class_start: int = num_classes // world_size * rank + min(
+            rank, num_classes % world_size
+        )
         self.num_sample: int = int(self.sample_rate * self.num_local)
 
-        self.weight_name = os.path.join(self.prefix, "rank_{}_softmax_weight.pt".format(self.rank))
-        self.weight_mom_name = os.path.join(self.prefix, "rank_{}_softmax_weight_mom.pt".format(self.rank))
+        self.weight_name = os.path.join(
+            self.prefix, "rank_{}_softmax_weight.pt".format(self.rank)
+        )
+        self.weight_mom_name = os.path.join(
+            self.prefix, "rank_{}_softmax_weight_mom.pt".format(self.rank)
+        )
 
         if resume:
             try:
                 self.weight: torch.Tensor = torch.load(self.weight_name)
                 self.weight_mom: torch.Tensor = torch.load(self.weight_mom_name)
-                if self.weight.shape[0] != self.num_local or self.weight_mom.shape[0] != self.num_local:
+                if (
+                    self.weight.shape[0] != self.num_local
+                    or self.weight_mom.shape[0] != self.num_local
+                ):
                     raise IndexError
                 logging.info("softmax weight resume successfully!")
                 logging.info("softmax weight mom resume successfully!")
             except (FileNotFoundError, KeyError, IndexError):
-                self.weight = torch.normal(0, 0.01, (self.num_local, self.embedding_size), device=self.device)
+                self.weight = torch.normal(
+                    0, 0.01, (self.num_local, self.embedding_size), device=self.device
+                )
                 self.weight_mom: torch.Tensor = torch.zeros_like(self.weight)
                 logging.info("softmax weight init!")
                 logging.info("softmax weight mom init!")
         else:
-            self.weight = torch.normal(0, 0.01, (self.num_local, self.embedding_size), device=self.device)
+            self.weight = torch.normal(
+                0, 0.01, (self.num_local, self.embedding_size), device=self.device
+            )
             self.weight_mom: torch.Tensor = torch.zeros_like(self.weight)
             logging.info("softmax weight init successfully!")
             logging.info("softmax weight mom init successfully!")
@@ -91,8 +117,7 @@ class PartialFC(Module):
             self.sub_weight = Parameter(torch.empty((0, 0)).cuda(local_rank))
 
     def save_params(self):
-        """ Save softmax weight for each rank on prefix
-        """
+        """Save softmax weight for each rank on prefix"""
         torch.save(self.weight.data, self.weight_name)
         torch.save(self.weight_mom, self.weight_mom_name)
 
@@ -105,7 +130,9 @@ class PartialFC(Module):
         total_label: tensor
             Label after all gather, which cross all GPUs.
         """
-        index_positive = (self.class_start <= total_label) & (total_label < self.class_start + self.num_local)
+        index_positive = (self.class_start <= total_label) & (
+            total_label < self.class_start + self.num_local
+        )
         total_label[~index_positive] = -1
         total_label[index_positive] -= self.class_start
         if int(self.sample_rate) != 1:
@@ -118,21 +145,21 @@ class PartialFC(Module):
             else:
                 index = positive
             self.index = index
-            total_label[index_positive] = torch.searchsorted(index, total_label[index_positive])
+            total_label[index_positive] = torch.searchsorted(
+                index, total_label[index_positive]
+            )
             self.sub_weight = Parameter(self.weight[index])
             self.sub_weight_mom = self.weight_mom[index]
 
     def forward(self, total_features, norm_weight):
-        """ Partial fc forward, `logits = X * sample(W)`
-        """
+        """Partial fc forward, `logits = X * sample(W)`"""
         torch.cuda.current_stream().wait_stream(self.stream)
         logits = linear(total_features, norm_weight)
         return logits
 
     @torch.no_grad()
     def update(self):
-        """ Set updated weight and weight_mom to memory bank.
-        """
+        """Set updated weight and weight_mom to memory bank."""
         self.weight_mom[self.index] = self.sub_weight_mom
         self.weight[self.index] = self.sub_weight
 
@@ -147,12 +174,15 @@ class PartialFC(Module):
         """
         with torch.cuda.stream(self.stream):
             total_label = torch.zeros(
-                size=[self.batch_size * self.world_size], device=self.device, dtype=torch.long)
+                size=[self.batch_size * self.world_size],
+                device=self.device,
+                dtype=torch.long,
+            )
             dist.all_gather(list(total_label.chunk(self.world_size, dim=0)), label)
             self.sample(total_label)
-            optimizer.state.pop(optimizer.param_groups[-1]['params'][0], None)
-            optimizer.param_groups[-1]['params'][0] = self.sub_weight
-            optimizer.state[self.sub_weight]['momentum_buffer'] = self.sub_weight_mom
+            optimizer.state.pop(optimizer.param_groups[-1]["params"][0], None)
+            optimizer.param_groups[-1]["params"][0] = self.sub_weight
+            optimizer.state[self.sub_weight]["momentum_buffer"] = self.sub_weight_mom
             norm_weight = normalize(self.sub_weight)
             return total_label, norm_weight
 
@@ -176,8 +206,12 @@ class PartialFC(Module):
         """
         total_label, norm_weight = self.prepare(label, optimizer)
         total_features = torch.zeros(
-            size=[self.batch_size * self.world_size, self.embedding_size], device=self.device)
-        dist.all_gather(list(total_features.chunk(self.world_size, dim=0)), features.data)
+            size=[self.batch_size * self.world_size, self.embedding_size],
+            device=self.device,
+        )
+        dist.all_gather(
+            list(total_features.chunk(self.world_size, dim=0)), features.data
+        )
         total_features.requires_grad = True
 
         logits = self.forward(total_features, norm_weight)
@@ -198,7 +232,9 @@ class PartialFC(Module):
             # get one-hot
             grad = logits_exp
             index = torch.where(total_label != -1)[0]
-            one_hot = torch.zeros(size=[index.size()[0], grad.size()[1]], device=grad.device)
+            one_hot = torch.zeros(
+                size=[index.size()[0], grad.size()[1]], device=grad.device
+            )
             one_hot.scatter_(1, total_label[index, None], 1)
 
             # calculate loss
@@ -216,7 +252,9 @@ class PartialFC(Module):
             total_features.grad.detach_()
         x_grad: torch.Tensor = torch.zeros_like(features, requires_grad=True)
         # feature gradient all-reduce
-        dist.reduce_scatter(x_grad, list(total_features.grad.chunk(self.world_size, dim=0)))
+        dist.reduce_scatter(
+            x_grad, list(total_features.grad.chunk(self.world_size, dim=0))
+        )
         x_grad = x_grad * self.world_size
         # backward backbone
         return x_grad, loss_v

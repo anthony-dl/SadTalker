@@ -1,4 +1,5 @@
 """run bash scripts/download_models.sh first to prepare the weights file"""
+
 import os
 import shutil
 from argparse import Namespace
@@ -18,12 +19,10 @@ class Predictor(BasePredictor):
         """Load the model into memory to make running multiple predictions efficient"""
         device = "cuda"
 
-        
-        sadtalker_paths = init_path(checkpoints,os.path.join("src","config"))
+        sadtalker_paths = init_path(checkpoints, os.path.join("src", "config"))
 
         # init model
-        self.preprocess_model = CropAndExtract(sadtalker_paths, device
-        )
+        self.preprocess_model = CropAndExtract(sadtalker_paths, device)
 
         self.audio_to_coeff = Audio2Coeff(
             sadtalker_paths,
@@ -158,12 +157,19 @@ class Predictor(BasePredictor):
             preprocess=preprocess,
         )
         animate_from_coeff.generate(
-            data, results_dir, args.pic_path, crop_info,
-            enhancer=enhancer, background_enhancer=args.background_enhancer,
-            preprocess=preprocess)
+            data,
+            results_dir,
+            args.pic_path,
+            crop_info,
+            enhancer=enhancer,
+            background_enhancer=args.background_enhancer,
+            preprocess=preprocess,
+        )
 
         output = "/tmp/out.mp4"
-        mp4_path = os.path.join(results_dir, [f for f in os.listdir(results_dir) if "enhanced.mp4" in f][0])
+        mp4_path = os.path.join(
+            results_dir, [f for f in os.listdir(results_dir) if "enhanced.mp4" in f][0]
+        )
         shutil.copy(mp4_path, output)
 
         return Path(output)
